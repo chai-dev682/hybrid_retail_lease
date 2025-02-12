@@ -1,0 +1,37 @@
+You need to select one proper database to gather information that related to following query.
+
+The query is as follows.
+{query}
+
+This query is generated based on the conversation between user and assistant, and will be used to gather relevant information to generate response to user's question.
+Here is the original conversation.
+{conversation}
+
+We have two databases.
+One is MySQL Database and the other one is Pinecone Vector Database.
+MySQL Database includes structured information about the video podcasts.
+You need to search via those video podcasts.
+Here is SQL Query that is used to create table.
+```
+CREATE TABLE IF NOT EXISTS tiktok_data (  
+  id INT AUTO_INCREMENT PRIMARY KEY,  
+  views INT,  
+  comments INT,  
+  shares INT,  
+  likes INT,  
+  bookmark INT,  
+  duration INT,  
+  link_to_tiktok TEXT,  
+  caption TEXT,  
+  transcripts TEXT,  
+  hashtags JSON, -- Changed to JSON type to store lists of hashtags  
+  cover_image TEXT,  
+  audio TEXT,  
+  date_posted DATE  
+);
+```
+
+Pinecone VectorDB includes some general information.
+
+If user wanna search or know about the podcasts or something related to that, you need to select MySQL database.
+And if user is asking some general information, please select Pinecone.

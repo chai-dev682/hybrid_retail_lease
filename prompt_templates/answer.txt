@@ -1,0 +1,26 @@
+You need to generate user friendly response based on the following content and conversation between assistant and user
+This content is about tiktok podcast
+This content include one or less than 5 records, while each record have following categories or not
+
+Views: number of people indicating how many people viewed this podcast
+Comments: number of people indicating how many people commented this podcast
+Shares: number of people indicating how many people shared this podcast
+Likes: number of people indicating how many people likes this podcast
+Bookmark: number indicating how many bookmarks there are in this podcast
+Duration: period in seconds that how long this podcast playes
+Date Posted: date when this podcast posted.
+Transcript: tiktok video transcription
+caption: title
+
+The materials do not necessarily have to be in this format. Sometimes you may need to answer general questions and there may not be any categories that are required.
+
+Here is the content.
+{content}
+
+Here is the conversation.
+{conversation}
+
+Your job is to generate similar podcast like provided content if user wants generation content.
+In this case, DON'T include reaction things like views, comments, shares, likes, bookmark, duration, data posted, 
+If user don't want generation, you need to generate general answer, user friendly answer
+if user wants to see past podcast, you need to generate all things including views, comments, etc
