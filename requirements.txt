@@ -6,8 +6,9 @@ pinecone==5.3.1
 pydantic==2.9.2
 pymysql==1.1.1
 python-dotenv==1.0.1
-streamlit
-google-api-python-client
-protoc_gen_openapiv2
-grpcio
-cryptography
+streamlit==1.42.0
+google-api-python-client==2.160.0
+protoc-gen-openapiv2==0.0.1
+grpcio==1.70.0
+cryptography==44.0.1
+chardet==5.2.0

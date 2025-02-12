@@ -16,42 +16,42 @@ DB_CONFIG = {
     "host":os.environ.get("host"),
     "password":os.environ.get("password"),
     "read_timeout":timeout,
-    "port":21086,
+    "port":int(os.environ.get("port")),
     "user":os.environ.get("user"),
     "write_timeout":timeout,
 }
 
-# Table schema (define in a separate module if needed)
 TABLE_SCHEMA = """
-CREATE TABLE IF NOT EXISTS tiktok_data (  
-  id INT AUTO_INCREMENT PRIMARY KEY,  
-  views INT,  
-  comments INT,  
-  shares INT,  
-  likes INT,  
-  bookmark INT,  
-  duration INT,  
-  link_to_tiktok TEXT,  
-  caption TEXT,  
-  transcripts TEXT,  
-  hashtags JSON, -- Changed to JSON type to store lists of hashtags  
-  cover_image TEXT,  
-  audio TEXT,  
-  date_posted DATE  
+CREATE TABLE IF NOT EXISTS retail_leases (
+  id INT PRIMARY KEY,
+  StartDate DATE,
+  ExpiryDate DATE,
+  CurrentRentPa DECIMAL(10,2), -- Annual rent in thousands
+  CurrentRentSqm DECIMAL(10,2), -- Rent per square meter
+  CentreName VARCHAR(255),
+  TenantCategory VARCHAR(255),
+  TenantSubCategory VARCHAR(255),
+  Lessor VARCHAR(255),
+  Lessee VARCHAR(255),
+  Area DECIMAL(10,2) -- Leased area in square meters
 );
 """
 
-# Data cleaning and formatting functions (can be expanded)
-def clean_number(value):
-    return int(value.replace(',', ''))
-
 def format_date(value):
-    date_obj = datetime.strptime(value, '%m/%d/%Y')  
-    # Format the datetime object as a string in MySQL's DATE format  
-    formatted_date = date_obj.strftime('%Y-%m-%d') 
-    return formatted_date  # Assuming date is already in correct format
+    try:
+        # Try parsing ISO format (2012-09-07T00:00:00)
+        date_obj = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except ValueError:
+        try:
+            # Try parsing MM/DD/YYYY format
+            date_obj = datetime.strptime(value, '%m/%d/%Y')
+        except ValueError:
+            # If both fail, try YYYY-MM-DD format
+            date_obj = datetime.strptime(value, '%Y-%m-%d')
+    
+    # Format the datetime object as a string in MySQL's DATE format
+    return date_obj.strftime('%Y-%m-%d')
 
-# Database interaction functions
 def create_database_connection(config):
     return pymysql.connect(**config)
 
@@ -63,8 +63,8 @@ def create_table(connection, schema):
 def insert_data(connection, data):
     cursor = connection.cursor()
     sql = """
-    INSERT INTO tiktok_data (views, comments, shares, likes, bookmark, duration, link_to_tiktok, caption, transcripts, hashtags, cover_image, audio, date_posted) 
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    INSERT INTO retail_leases (id, StartDate, ExpiryDate, CurrentRentPa, CurrentRentSqm, CentreName, TenantCategory, TenantSubCategory, Lessor, Lessee, Area) 
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     cursor.execute(sql, data)
     connection.commit()
@@ -79,21 +79,18 @@ def import_csv_to_mysql(csv_file_path):
         next(reader)  # Skip header
 
         for row in reader:
-            hashtags_json = json.dumps([tag.strip() for tag in row[9].split(',')])
             cleaned_data = (
-                clean_number(row[0]),
-                clean_number(row[1]),
-                clean_number(row[2]),
-                clean_number(row[3]),
-                clean_number(row[4]),
-                int(row[5]),
-                row[6],
-                row[7],
-                row[8],
-                hashtags_json,
-                row[10],
-                row[11],
-                format_date(row[12])
+                int(row[2]),
+                format_date(row[6]),
+                format_date(row[7]),
+                int(row[25]),
+                int(row[26]),
+                row[12],
+                row[32],
+                row[33],
+                row[20],
+                row[21],
+                int(row[17])
             )
             insert_data(connection, cleaned_data)
 
@@ -104,28 +101,12 @@ def format_rag_contexts(matches: list):
     contexts = []
     for x in matches:
         text = ""
-        if "caption" in x:
-            text += f"caption: {x['caption']}\n"
-        if "transcripts" in x:
-            text += f"transcript: {x['transcripts']}\n"
-        if "views" in x:
-            text += f"views: {x['views']}\n"
-        if "comments" in x:
-            text += f"comments: {x['comments']}\n"
-        if "shares" in x:
-            text += f"shares: {x['shares']}\n"
-        if "likes" in x:
-            text += f"likes: {x['likes']}\n"
-        if "bookmark" in x:
-            text += f"bookmark: {x['bookmark']}\n"
-        if "duration" in x:
-            text += f"duration: {x['duration']}\n"
-        if "date_posted" in x:
-            text += f"date: {x['date_posted']}\n"
         for i in list(x.keys()):
-            if "necessary_info__" in i:
-                text += f"{i.split('__')[1]}: {x[i]}\n"
-        if text:  # Only append non-empty text
+            if i == "id":
+                continue
+            if i in x:
+                text += f"{i}: {x[i]}\n"
+        if text:
             contexts.append(text)
     context_str = "\n---\n".join(contexts)
     return context_str

@@ -5,7 +5,7 @@ import streamlit as st
 load_env()
 
 agent = Agent()
-st.title("💬 MattFarmerAI - Assistant")
+st.title("💬 Retail Leases AI - Assistant")
 st.caption("🚀 A Streamlit chatbot powered by OpenAI")
 
 if "messages" not in st.session_state:

@@ -1,13 +1,14 @@
 from langchain_openai import OpenAIEmbeddings
-from langchain_pinecone import PineconeVectorStore
 from pinecone.grpc import PineconeGRPC as Pinecone
 from pinecone import ServerlessSpec
-from datetime import datetime
 import csv
 import uuid
 from dotenv import load_dotenv
 import config
 import time
+import chardet
+
+from .db_utils import format_date
 
 load_dotenv()
 
@@ -18,28 +19,58 @@ spec = ServerlessSpec(
 )
 
 # check if index already exists (it shouldn't if this is first time)
-if not pc.has_index(config.PINECONE_INDEX_NAME):
+existing_indexes = pc.list_indexes()
+
+if config.PINECONE_INDEX_NAME not in [item["name"] for item in existing_indexes]:
     # if does not exist, create index
+    print("creating index on pinecone...")
     pc.create_index(
         name=config.PINECONE_INDEX_NAME,
-        dimension=dims,  # dimensionality of embed 3
+        dimension=dims,
         metric='cosine',
         spec=spec
     )
     # wait for index to be initialized
     while not pc.describe_index(config.PINECONE_INDEX_NAME).status['ready']:
         time.sleep(1)
+else:
+    print(f"Index with name '{config.PINECONE_INDEX_NAME}' already exists.")
+    # user_input = input("Would you like to delete and recreate the index? (y/n): ").lower()
+    # if user_input == 'y':
+    #     print(f"Deleting index '{config.PINECONE_INDEX_NAME}'...")
+    #     pc.delete_index(config.PINECONE_INDEX_NAME)
+    #     print("Creating new index...")
+    #     pc.create_index(
+    #         name=config.PINECONE_INDEX_NAME,
+    #         dimension=dims,
+    #         metric='cosine',
+    #         spec=spec
+    #     )
+    #     while not pc.describe_index(config.PINECONE_INDEX_NAME).status['ready']:
+    #         time.sleep(1)
+    #     print("Index recreated successfully!")
+    # else:
+    #     print("Using existing index.")
+
+def generate_vector_text(record: dict) -> str:
+    """Generate a text representation of the record for vector storage"""
+    fields = [
+        ("CentreName", "Shopping Centre"),
+        ("TenantCategory", "Business Category"),
+        ("TenantSubCategory", "Business Subcategory"),
+        ("Lessor", "Property Owner"),
+        ("Lessee", "Tenant")
+    ]
+    
+    text_parts = []
+    for field, label in fields:
+        if field in record and record[field]:
+            text_parts.append(f"{label}: {record[field]}")
+    
+    return "\n".join(text_parts)
 
 # connect to index
 index = pc.Index(config.PINECONE_INDEX_NAME)
-
-
-def clean_number(value):
-    return int(value.replace(',', ''))
-
-def format_date(value):
-    formatted_date = datetime.strptime(value, '%m/%d/%Y')
-    return formatted_date.isoformat()  # Assuming date is already in correct format
 
 embed_model = OpenAIEmbeddings(
     model=config.ModelType.embedding,
@@ -48,37 +79,40 @@ embed_model = OpenAIEmbeddings(
 
 # embed and index all our our data!
 def import_csv_to_vector(csv_file_path):
-    with open(csv_file_path, 'r') as file:
+    # Detect the file encoding
+    with open(csv_file_path, 'rb') as file:
+        raw_data = file.read()
+        result = chardet.detect(raw_data)
+        encoding = result['encoding']
+
+    with open(csv_file_path, 'r', encoding=encoding) as file:
         reader = csv.reader(file)
         next(reader)  # Skip header
         ind = 0
 
         for row in reader:
-            print(ind)
             ind = ind + 1
             embedding_id = str(uuid.uuid4())
-            hashtags_list= [tag.strip() for tag in row[9].split(',')]
+            cleaned_data = {
+                    "id": int(row[2]),
+                    "StartDate": format_date(row[6]),
+                    "ExpiryDate": format_date(row[7]),
+                    "CurrentRentPa": int(row[25]),
+                    "CurrentRentSqm": int(row[26]),
+                    "CentreName": row[12],
+                    "TenantCategory": row[32],
+                    "TenantSubCategory": row[33],
+                    "Lessor": row[20],
+                    "Lessee": row[21],
+                    "Area": int(row[17])
+                }
             vector = [{
                 'id': embedding_id,
-                'values':embed_model.embed_documents([row[8]])[0],
-                'metadata': {
-                    'views': clean_number(row[0]),
-                    'comments': clean_number(row[1]),
-                    'shares': clean_number(row[2]),
-                    'likes': clean_number(row[3]),
-                    'bookmark': clean_number(row[4]),
-                    'duration': clean_number(row[5]),
-                    'link_to_tiktok': row[6],
-                    'caption': row[7],
-                    'text': row[8],
-                    'hashtags': hashtags_list,
-                    'cover_image_url': row[10],
-                    'audio_url': row[11],
-                    'date': format_date(row[12]),
-                },
+                'values':embed_model.embed_documents(generate_vector_text(cleaned_data))[0],
+                'metadata': cleaned_data,
             }]
             index.upsert(vectors=vector)
-            print("done")
+            print(f"row {ind}: done")
 
     print("CSV data imported successfully into pinecone vector database.")
 
@@ -86,15 +120,16 @@ def format_rag_contexts(matches: list):
     contexts = []
     for x in matches:
         text = (
-            f"caption: {x['metadata']['caption']}\n"
-            f"transcript: {x['metadata']['text']}\n"
-            f"views: {x['metadata']['views']}\n"
-            f"comments: {x['metadata']['comments']}\n"
-            f"shares: {x['metadata']['shares']}\n"
-            f"likes: {x['metadata']['likes']}\n"
-            f"bookmark: {x['metadata']['bookmark']}\n"
-            f"duration: {x['metadata']['duration']}\n"
-            f"date: {x['metadata']['date']}\n"
+            f"StartDate: {x['metadata']['StartDate']}\n"
+            f"ExpiryDate: {x['metadata']['ExpiryDate']}\n"
+            f"CurrentRentPa: {x['metadata']['CurrentRentPa']}\n"
+            f"CurrentRentSqm: {x['metadata']['CurrentRentSqm']}\n"
+            f"CentreName: {x['metadata']['CentreName']}\n"
+            f"TenantCategory: {x['metadata']['TenantCategory']}\n"
+            f"TenantSubCategory: {x['metadata']['TenantSubCategory']}\n"
+            f"Lessor: {x['metadata']['Lessor']}\n"
+            f"Lessee: {x['metadata']['Lessee']}\n"
+            f"Area: {x['metadata']['Area']}\n"
         )
         contexts.append(text)
     context_str = "\n---\n".join(contexts)
