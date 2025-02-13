@@ -12,3 +12,4 @@ protoc-gen-openapiv2==0.0.1
 grpcio==1.70.0
 cryptography==44.0.1
 chardet==5.2.0
+pydantic-settings==2.7.1
