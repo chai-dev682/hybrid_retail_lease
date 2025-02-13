@@ -43,7 +43,10 @@ def query_transformation_node(state: GraphState) -> GraphState:
     return state
 
 def determine_database(state: GraphState) -> DatabaseEnum:
-    is_sql = extract_function_params(prompt=sql_vector.format(query=state.query), function=sql_vector_tool)
+    is_sql = extract_function_params(prompt=sql_vector.format(
+        query=state.query,
+        conversation=format_conversation_history(state.messages)
+    ), function=sql_vector_tool)
     if is_sql == "yes":
         return DatabaseEnum.MYSQL
     else:
@@ -51,15 +54,20 @@ def determine_database(state: GraphState) -> DatabaseEnum:
 
 def txt2sql_node(state: GraphState) -> GraphState:
     state.database = DatabaseEnum.MYSQL
-    response = model.invoke([SystemMessage(generate_sql.format(query=state.query))])
+    response = model.invoke([SystemMessage(generate_sql.format(
+        conversation=format_conversation_history(state.messages),
+        query=state.query
+    ))])
     state.sql_query = response.content.strip()
     return state
 
 def data_retrieval_node(state: GraphState) -> GraphState:
     try:
         if state.database == DatabaseEnum.MYSQL:
+            print(state.sql_query)
             results = mysql_db.query(state.sql_query)
         else:
+            print(state.query)
             results = vector_db.query(state.query, top_k=3)
 
         context = "\n\n".join(
@@ -79,9 +87,8 @@ def data_retrieval_node(state: GraphState) -> GraphState:
         )
 
         prompt = generate_response.format(
-            query=state.query,
-            conversation_history=format_conversation_history(state.messages),
-            context=context
+            context=context,
+            conversation=format_conversation_history(state.messages)
         )
 
         response = model.invoke([SystemMessage(prompt)])

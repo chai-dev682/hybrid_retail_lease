@@ -1,11 +1,11 @@
 query_transformation = """
-Based on the conversation history and current query, 
-generate a clear and focused search query.
+You need to generate database query for data retrieval based on the following conversation between user and assistant.
+You need to generate query that can be used to retrieve relevant information to generate answer to current user question.
+The query should be a short sentence or phrase that include the information content that user wanna know.
 
-Conversation:
+Here is the conversation.
 {conversation}
 
-Current Query: {query}
-
-Generate a focused search query:
+Here is the user's query.
+{query}
 """
