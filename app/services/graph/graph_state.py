@@ -15,3 +15,5 @@ class GraphState(BaseModel):
     database: Optional[DatabaseEnum] = DatabaseEnum.VECTORDB
     query: Optional[str] = None
     sql_query: Optional[str] = None
+    raw_data: Optional[List[Dict]] = None
+    visualization: Optional[Dict] = None

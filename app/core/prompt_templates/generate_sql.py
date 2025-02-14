@@ -49,11 +49,6 @@ These are the information of each property:
   Lessee – Tenant company or individual.
   Area – Leased area in square meters.
 
-so you need to generate SQL query based on that information
-for example if user wants to see most viewed retail lease, then you can generate like  'SELECT * FROM retail_leases ORDER BY views DESC LIMIT 5;'
-for example if user wants to see most commented retail lease, then you can generate like  'SELECT * FROM retail_leases ORDER BY comments DESC LIMIT 5;'
-
-
 You need to generate 'SELECT *' Query for this table.
 Only generate SQL query.
 Do not generate any other messages such as explanation of the generation, extra guidance, etc.
@@ -62,10 +57,6 @@ You must generate SQL Query ONLY.
 Please generate MySQL query to gather information for following query.
 The query is as follows.
 {query}
-
-This query is generated based on the conversation between user and assistant, and will be used to gather relevant information to generate response to user's question.
-Here is the original conversation.
-{conversation}
 
 When generating the query:
 
@@ -94,6 +85,8 @@ Double check the SQLite query for common mistakes, including:
 - Casting to the correct data type
 - Using the proper columns for joins
 - Don't include any unnecessary charaters like `, ", ', ...
+- Don't include any other things that is not related to SQL query itself.
+- For string values, don't use =, use LIKE instead.
 
 If there are any of the above mistakes, rewrite the query. If there are no mistakes, just reproduce the original query.
 """

@@ -1,6 +1,8 @@
 from typing import List, Dict
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, HumanMessage
+import pandas as pd
+
 from app.core.config import settings, ModelType
 from app.db.vectordb import vector_db
 from app.db.mysql import mysql_db
@@ -30,16 +32,12 @@ def extract_function_params(prompt, function):
 def format_conversation_history(messages: List[Dict[str, str]]) -> str:
     return "\n".join([f"{msg['role']}: {msg['content']}" for msg in messages])
 
-def query_transformation_node(state: GraphState) -> GraphState:    
-    response = model.invoke([{
-        "role": "user",
-        "content": query_transformation.format(
-            conversation=format_conversation_history(state.messages),
-            query=state.messages[-1]["content"]
-        )
-    }])
+def query_transformation_node(state: GraphState) -> GraphState:
+    # response = model.invoke([state.messages + SystemMessage(query_transformation.format(
+    #     query=state.messages[-1]["content"]
+    # ))])
     
-    state.query = response.content
+    # state.query = response.content
     return state
 
 def determine_database(state: GraphState) -> DatabaseEnum:
@@ -54,11 +52,10 @@ def determine_database(state: GraphState) -> DatabaseEnum:
 
 def txt2sql_node(state: GraphState) -> GraphState:
     state.database = DatabaseEnum.MYSQL
-    response = model.invoke([SystemMessage(generate_sql.format(
-        conversation=format_conversation_history(state.messages),
+    response = model.invoke(state.messages + [SystemMessage(generate_sql.format(
         query=state.query
     ))])
-    state.sql_query = response.content.strip()
+    state.sql_query = response.content.strip().replace('`', '')
     return state
 
 def data_retrieval_node(state: GraphState) -> GraphState:
@@ -69,29 +66,23 @@ def data_retrieval_node(state: GraphState) -> GraphState:
         else:
             print(state.query)
             results = vector_db.query(state.query, top_k=3)
+            results = [result.model_dump() for result in results]
 
+        state.raw_data = results
+        
+        # Dynamically build context string using only available fields
         context = "\n\n".join(
             "\n".join([
-                f"Start Date: {lease.start_date}",
-                f"Expiry Date: {lease.expiry_date}",
-                f"Rent: ${lease.current_rent_pa:,.2f}/year (in thousands)",
-                f"Rent per sqm: ${lease.current_rent_sqm:,.2f}",
-                f"Centre: {lease.centre_name}",
-                f"Tenant: {lease.lessee}",
-                f"Category: {lease.tenant_category}",
-                f"Subcategory: {lease.tenant_subcategory}",
-                f"Lessor: {lease.lessor}",
-                f"Lessee: {lease.lessee}",
-                f"Area: {lease.area} sqm"
+                f"{key.replace('_', ' ').title()}: {value}"
+                for key, value in lease.items()
+                if value is not None
             ]) for lease in results
         )
-
         prompt = generate_response.format(
             context=context,
-            conversation=format_conversation_history(state.messages)
         )
 
-        response = model.invoke([SystemMessage(prompt)])
+        response = model.invoke(state.messages + [HumanMessage(prompt)])
         state.messages.append({"role": "assistant", "content": response.content})
 
     except Exception as e:
@@ -101,4 +92,54 @@ def data_retrieval_node(state: GraphState) -> GraphState:
             "content": "I apologize, but I encountered an error while retrieving the information. Could you please rephrase your question?"
         })
 
+    return state
+
+def visualization_node(state: GraphState) -> GraphState:
+    if not state.raw_data:
+        state.visualization = {"show": False}
+        return state
+
+    # Define visualization function
+    visualization_function = {
+        "name": "determine_visualization",
+        "description": "Determine the best visualization type for the given data and query",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "visualization_type": {
+                    "type": "string",
+                    "enum": ["bar", "line", "table", "none"],
+                    "description": "Type of visualization to show. 'bar' for comparisons, 'line' for trends, 'table' for raw data, 'none' for no visualization"
+                },
+                "x_axis": {
+                    "type": "string",
+                    "description": "Field to use for x-axis"
+                },
+                "y_axis": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Fields to use for y-axis"
+                }
+            },
+            "required": ["visualization_type"]
+        }
+    }
+
+    # Get visualization recommendation from LLM
+    model_with_tools = model.bind_tools([visualization_function])
+    response = model_with_tools.invoke(state.messages + [HumanMessage(f"Query: {state.query}\nAvailable fields: {list(state.raw_data[0].keys())}")])
+
+    # Parse the function call
+    if response.tool_calls:
+        args = response.tool_calls[0]['args']
+        state.visualization = {
+            "show": args["visualization_type"] != "none",
+            "type": args["visualization_type"],
+            "data": pd.DataFrame(state.raw_data),
+            "x": args.get("x_axis", ""),
+            "y": args.get("y_axis", [])
+        }
+    else:
+        state.visualization = {"show": False}
+    
     return state

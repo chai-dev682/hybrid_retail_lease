@@ -70,13 +70,13 @@ class MySQLService:
         finally:
             connection.close()
 
-    def query(self, sql: str) -> List[RetailLease]:
+    def query(self, sql: str):
         connection = self._get_connection()
         try:
             with connection.cursor() as cursor:
                 cursor.execute(sql)
                 results = cursor.fetchall()
-                return [RetailLease(**result) for result in results]
+                return results
         finally:
             connection.close()
 

@@ -1,7 +1,7 @@
 import streamlit as st
+import pandas as pd
 from app.services.upload import upload_service
 from app.services.chat import chat_service
-import asyncio
 
 st.title("💬 Retail Leases AI - Assistant")
 st.caption("🚀 A Streamlit chatbot powered by OpenAI")
@@ -29,9 +29,20 @@ for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
 if prompt := st.chat_input():
-    # st.session_state.messages.append({"role": "user", "content": prompt})
     st.chat_message("user").write(prompt)
-
-    response = chat_service.process_message(prompt, st.session_state.messages)
-    st.session_state.messages.append({"role": "assistant", "content": response})
-    st.chat_message("assistant").write(response)
+    
+    result = chat_service.process_message(prompt, st.session_state.messages)
+    
+    st.session_state.messages.append({"role": "assistant", "content": result["response"]})
+    st.chat_message("assistant").write(result["response"])
+    
+    if isinstance(result["visualization"], dict) and "data" in result["visualization"]:
+        # Handle visualization
+        if result["visualization"]["show"]:
+            df = result["visualization"]["data"]
+            if result["visualization"]["type"] == "bar":
+                st.bar_chart(df.set_index(result["visualization"]["x"])[result["visualization"]["y"]])
+            elif result["visualization"]["type"] == "line":
+                st.line_chart(df.set_index(result["visualization"]["x"])[result["visualization"]["y"]])
+            elif result["visualization"]["type"] == "table":
+                st.dataframe(df)
