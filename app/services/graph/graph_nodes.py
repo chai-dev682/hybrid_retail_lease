@@ -55,7 +55,7 @@ def txt2sql_node(state: GraphState) -> GraphState:
     response = model.invoke(state.messages + [SystemMessage(generate_sql.format(
         query=state.query
     ))])
-    state.sql_query = response.content.strip().replace('`', '')
+    state.sql_query = response.content.strip().replace('``sql', '').replace('`', '')
     return state
 
 def data_retrieval_node(state: GraphState) -> GraphState:
