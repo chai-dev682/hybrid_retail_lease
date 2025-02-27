@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 from app.services.upload import upload_service
 from app.services.chat import chat_service
 
@@ -33,6 +32,7 @@ if prompt := st.chat_input():
     
     result = chat_service.process_message(prompt, st.session_state.messages)
     
+    st.session_state.messages.append({"role": "user", "content": prompt})
     st.session_state.messages.append({"role": "assistant", "content": result["response"]})
     st.chat_message("assistant").write(result["response"])
     

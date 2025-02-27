@@ -1,6 +1,12 @@
 from typing import List, Dict, Optional
 from enum import Enum
 from pydantic import BaseModel
+from typing_extensions import TypedDict, Annotated
+
+class QueryOutput(TypedDict):
+    """Generated SQL query."""
+
+    query: Annotated[str, ..., "Syntactically valid SQL query."]
 
 class DatabaseEnum(str, Enum):
     MYSQL = "mysql"
@@ -12,8 +18,7 @@ class Message(BaseModel):
 
 class GraphState(BaseModel):
     messages: List[Dict[str, str]]
-    database: Optional[DatabaseEnum] = DatabaseEnum.VECTORDB
     query: Optional[str] = None
     sql_query: Optional[str] = None
-    raw_data: Optional[List[Dict]] = None
-    visualization: Optional[Dict] = None
+    result: Optional[str] = None
+    visualization: Optional[Dict] = {"show": False}

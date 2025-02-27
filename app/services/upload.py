@@ -1,7 +1,6 @@
 import csv
 from typing import BinaryIO
 import chardet
-from app.db.vectordb import vector_db
 from app.db.mysql import mysql_db
 from app.schemas.retail_lease import RetailLease
 from datetime import datetime
@@ -25,7 +24,7 @@ class UploadService:
         encoding = chardet.detect(raw_data)['encoding']
 
         # Read CSV
-        csv_data = csv.reader(file.read().decode(encoding).splitlines())
+        csv_data = csv.reader(raw_data.decode(encoding).splitlines())
         next(csv_data)  # Skip header
 
         for row in csv_data:
@@ -43,8 +42,6 @@ class UploadService:
                 area=float(row[17])
             )
             
-            # Store in both databases
             mysql_db.insert_lease(lease)
-            vector_db.upsert_lease(lease)
 
 upload_service = UploadService()

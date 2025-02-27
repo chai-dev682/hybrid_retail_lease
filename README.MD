@@ -89,8 +89,8 @@ streamlit run main.py
 
 3. Interact with the chatbot by asking questions about the retail leases. Example queries:
    - "What is the average rent in Townsville Shopping Centre?"
-   - "Show me all beauty stores in the database"
-   - "Compare rent prices across different tenant categories"
+   - "What can I expect to pay for rent in Townsville Shopping Centre?"
+   - "What is the average rent per square meterin Townsville Shopping Centre?"
 
 ## Features in Detail
 

@@ -1,32 +1,25 @@
-from typing import List
-import pymysql
+from sqlalchemy import create_engine
+from sqlalchemy import text
+
 from app.core.config import settings
 from app.schemas.retail_lease import RetailLease
 
 class MySQLService:
     def __init__(self):
-        self.config = {
-            "host": settings.DB_HOST,
-            "user": settings.DB_USER,
-            "password": settings.DB_PASSWORD,
-            "db": settings.DB_NAME,
-            "port": settings.DB_PORT,
-            "charset": "utf8mb4",
-            "cursorclass": pymysql.cursors.DictCursor,
-            "connect_timeout": 10,
-            "read_timeout": 10,
-            "write_timeout": 10
-        }
+        self._engine = None
 
-    def _get_connection(self):
-        return pymysql.connect(**self.config)
+    def _get_engine(self):
+        if self._engine is None:
+            url = f"mysql+pymysql://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}?charset=utf8mb4"
+            self._engine = create_engine(url, pool_pre_ping=True)
+        return self._engine
 
     def initialize(self):
         """Create the retail_leases table if it doesn't exist"""
-        connection = self._get_connection()
+        engine = self._get_engine()
         try:
-            with connection.cursor() as cursor:
-                cursor.execute("""
+            with engine.connect() as conn:
+                conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS retail_leases (
                     id INT PRIMARY KEY,
                     start_date DATE,
@@ -40,44 +33,44 @@ class MySQLService:
                     lessee VARCHAR(255),
                     area DECIMAL(10,2)
                 )
-                """)
-            connection.commit()
+                """))
         finally:
-            connection.close()
+            engine.dispose()
 
     def insert_lease(self, lease: RetailLease):
-        connection = self._get_connection()
+        engine = self._get_engine()
         try:
-            with connection.cursor() as cursor:
-                sql = """INSERT INTO retail_leases 
+            with engine.connect() as conn:
+                sql = text("""INSERT INTO retail_leases 
                         (id, start_date, expiry_date, current_rent_pa, current_rent_sqm,
                          centre_name, tenant_category, tenant_subcategory, lessor, lessee, area)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
-                cursor.execute(sql, (
-                    lease.id,
-                    lease.start_date,
-                    lease.expiry_date,
-                    lease.current_rent_pa,
-                    lease.current_rent_sqm,
-                    lease.centre_name,
-                    lease.tenant_category,
-                    lease.tenant_subcategory,
-                    lease.lessor,
-                    lease.lessee,
-                    lease.area
-                ))
-            connection.commit()
+                        VALUES (:id, :start_date, :expiry_date, :current_rent_pa, :current_rent_sqm,
+                               :centre_name, :tenant_category, :tenant_subcategory, :lessor, :lessee, :area)""")
+                conn.execute(sql, {
+                    "id": lease.id,
+                    "start_date": lease.start_date,
+                    "expiry_date": lease.expiry_date,
+                    "current_rent_pa": lease.current_rent_pa,
+                    "current_rent_sqm": lease.current_rent_sqm,
+                    "centre_name": lease.centre_name,
+                    "tenant_category": lease.tenant_category,
+                    "tenant_subcategory": lease.tenant_subcategory,
+                    "lessor": lease.lessor,
+                    "lessee": lease.lessee,
+                    "area": lease.area
+                })
+                conn.commit()
         finally:
-            connection.close()
+            engine.dispose()
 
     def query(self, sql: str):
-        connection = self._get_connection()
+        engine = self._get_engine()
         try:
-            with connection.cursor() as cursor:
-                cursor.execute(sql)
-                results = cursor.fetchall()
+            with engine.connect() as conn:
+                from sqlalchemy import text
+                results = conn.execute(text(sql)).fetchall()
                 return results
         finally:
-            connection.close()
+            engine.dispose()
 
 mysql_db = MySQLService()
